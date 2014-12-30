@@ -2,6 +2,11 @@
 <?php
 
 // Find and initialize Composer
+use Resque\Redis;
+use Resque\Resque;
+use Resque\Log;
+use Resque\Worker;
+
 $files = array(
     __DIR__ . '/../../vendor/autoload.php',
     __DIR__ . '/../../../autoload.php',
@@ -67,10 +72,10 @@ if($APP_INCLUDE) {
     require_once $APP_INCLUDE;
 }
 
-// See if the APP_INCLUDE containes a logger object,
+// See if the APP_INCLUDE contains a logger object,
 // If none exists, fallback to internal logger
 if (!isset($logger) || !is_object($logger)) {
-    $logger = new Resque_Log($logLevel);
+    $logger = new Log($logLevel);
 }
 
 $BLOCKING = getenv('BLOCKING') !== FALSE;
@@ -90,7 +95,7 @@ if(!empty($COUNT) && $COUNT > 1) {
 $PREFIX = getenv('PREFIX');
 if(!empty($PREFIX)) {
     $logger->log(Psr\Log\LogLevel::INFO, 'Prefix set to {prefix}', array('prefix' => $PREFIX));
-    Resque_Redis::prefix($PREFIX);
+    Redis::prefix($PREFIX);
 }
 
 if($count > 1) {
@@ -103,7 +108,7 @@ if($count > 1) {
         // Child, start the worker
         else if(!$pid) {
             $queues = explode(',', $QUEUE);
-            $worker = new Resque_Worker($queues);
+            $worker = new Worker($queues);
             $worker->setLogger($logger);
             $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
             $worker->work($interval, $BLOCKING);
@@ -114,7 +119,7 @@ if($count > 1) {
 // Start a single worker
 else {
     $queues = explode(',', $QUEUE);
-    $worker = new Resque_Worker($queues);
+    $worker = new Worker($queues);
     $worker->setLogger($logger);
 
     $PIDFILE = getenv('PIDFILE');
@@ -126,4 +131,3 @@ else {
     $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
     $worker->work($interval, $BLOCKING);
 }
-?>

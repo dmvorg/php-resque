@@ -1,7 +1,7 @@
 {
 	"name": "chrisboulton/php-resque",
 	"type": "library",
-	"description": "Redis backed library for creating background jobs and processing them later. Based on resque for Ruby.",
+	"description": "Redis backed library for creating background jobs and processing them later. Based on Resque for Ruby.",
 	"keywords": ["job", "background", "redis", "resque"],
 	"homepage": "http://www.github.com/chrisboulton/php-resque/",
 	"license": "MIT",
@@ -9,7 +9,11 @@
 		{
 			"name": "Chris Boulton",
 			"email": "chris@bigcommerce.com"
-		}
+		},
+	    {
+			"name": "Jesse Decker",
+			"email": "jesse.decker@dmv.org"
+	    }
 	],
 	"repositories": [
 		{
@@ -34,8 +38,8 @@
 		"bin/resque"
 	],
 	"autoload": {
-		"psr-0": {
-			"Resque": "lib"
+		"psr-4": {
+			"Resque\\": "lib"
 		}
 	}
 }

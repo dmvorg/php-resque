@@ -7,13 +7,15 @@
  * @license		http://www.opensource.org/licenses/mit-license.php
  */
 
+use Resque\Resque;
+
 $loader = require __DIR__ . '/../vendor/autoload.php';
 $loader->add('Resque_Tests', __DIR__);
 
 define('TEST_MISC', realpath(__DIR__ . '/misc/'));
 define('REDIS_CONF', TEST_MISC . '/redis.conf');
 
-// Attempt to start our own redis instance for tesitng.
+// Attempt to start our own redis instance for testing.
 exec('which redis-server', $output, $returnVar);
 if($returnVar != 0) {
 	echo "Cannot find redis-server in path. Please make sure redis is installed.\n";

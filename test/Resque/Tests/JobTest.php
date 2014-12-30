@@ -1,7 +1,14 @@
 <?php
+use Resque\Redis;
+use Resque\Resque;
+use Resque\Job;
+use Resque\Log;
+use Resque\Exception;
+use Resque\Stat;
+use Resque\Worker;
 
 /**
- * Resque_Job tests.
+ * Resque\Job tests.
  *
  * @package		Resque/Tests
  * @author		Chris Boulton <chris@bigcommerce.com>
@@ -16,8 +23,8 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 		parent::setUp();
 
 		// Register a worker to test with
-		$this->worker = new Resque_Worker('jobs');
-		$this->worker->setLogger(new Resque_Log());
+		$this->worker = new Worker('jobs');
+		$this->worker->setLogger(new Log());
 		$this->worker->registerWorker();
 	}
 
@@ -30,7 +37,7 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 	{
 		Resque::enqueue('jobs', 'Test_Job');
 
-		$job = Resque_Job::reserve('jobs');
+		$job = Job::reserve('jobs');
 		if($job == false) {
 			$this->fail('Job could not be reserved.');
 		}
@@ -62,7 +69,7 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 			),
 		);
 		Resque::enqueue('jobs', 'Test_Job', $args);
-		$job = Resque_Job::reserve('jobs');
+		$job = Job::reserve('jobs');
 
 		$this->assertEquals($args, $job->getArguments());
 	}
@@ -70,8 +77,8 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 	public function testAfterJobIsReservedItIsRemoved()
 	{
 		Resque::enqueue('jobs', 'Test_Job');
-		Resque_Job::reserve('jobs');
-		$this->assertFalse(Resque_Job::reserve('jobs'));
+		Job::reserve('jobs');
+		$this->assertFalse(Job::reserve('jobs'));
 	}
 
 	public function testRecreatedJobMatchesExistingJob()
@@ -89,12 +96,12 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 		);
 
 		Resque::enqueue('jobs', 'Test_Job', $args);
-		$job = Resque_Job::reserve('jobs');
+		$job = Job::reserve('jobs');
 
 		// Now recreate it
 		$job->recreate();
 
-		$newJob = Resque_Job::reserve('jobs');
+		$newJob = Job::reserve('jobs');
 		$this->assertEquals($job->payload['class'], $newJob->payload['class']);
 		$this->assertEquals($job->getArguments(), $newJob->getArguments());
 	}
@@ -106,17 +113,17 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 			'class' => 'Failing_Job',
 			'args' => null
 		);
-		$job = new Resque_Job('jobs', $payload);
+		$job = new Job('jobs', $payload);
 		$job->worker = $this->worker;
 
 		$this->worker->perform($job);
 
-		$this->assertEquals(1, Resque_Stat::get('failed'));
-		$this->assertEquals(1, Resque_Stat::get('failed:'.$this->worker));
+		$this->assertEquals(1, Stat::get('failed'));
+		$this->assertEquals(1, Stat::get('failed:'.$this->worker));
 	}
 
 	/**
-	 * @expectedException Resque_Exception
+	 * @expectedException Exception
 	 */
 	public function testJobWithoutPerformMethodThrowsException()
 	{
@@ -127,7 +134,7 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 	}
 
 	/**
-	 * @expectedException Resque_Exception
+	 * @expectedException Exception
 	 */
 	public function testInvalidJobThrowsException()
 	{
@@ -136,7 +143,7 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 		$job->worker = $this->worker;
 		$job->perform();
 	}
-	
+
 	public function testJobWithSetUpCallbackFiresSetUp()
 	{
 		$payload = array(
@@ -146,12 +153,12 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 				'somevar2',
 			),
 		);
-		$job = new Resque_Job('jobs', $payload);
+		$job = new Job('jobs', $payload);
 		$job->perform();
-		
+
 		$this->assertTrue(Test_Job_With_SetUp::$called);
 	}
-	
+
 	public function testJobWithTearDownCallbackFiresTearDown()
 	{
 		$payload = array(
@@ -161,24 +168,24 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 				'somevar2',
 			),
 		);
-		$job = new Resque_Job('jobs', $payload);
+		$job = new Job('jobs', $payload);
 		$job->perform();
-		
+
 		$this->assertTrue(Test_Job_With_TearDown::$called);
 	}
-	
+
 	public function testJobWithNamespace()
 	{
-	    Resque_Redis::prefix('php');
+	    Redis::prefix('php');
 	    $queue = 'jobs';
 	    $payload = array('another_value');
         Resque::enqueue($queue, 'Test_Job_With_TearDown', $payload);
-        
+
         $this->assertEquals(Resque::queues(), array('jobs'));
         $this->assertEquals(Resque::size($queue), 1);
-        
-        Resque_Redis::prefix('resque');
-        $this->assertEquals(Resque::size($queue), 0);        
+
+        Redis::prefix('resque');
+        $this->assertEquals(Resque::size($queue), 0);
 	}
 
 	public function testDequeueAll()
@@ -296,7 +303,7 @@ class Resque_Tests_JobTest extends Resque_Tests_TestCase
 		$this->assertEquals(Resque::size($queue), 2);
 		$test = array('Test_Job_Dequeue9' => $arg);
 		$this->assertEquals(Resque::dequeue($queue, $test), 1);
-		#$this->assertEquals(Resque::size($queue), 1);
+		#$this->assertEquals(Resque\Resque::size($queue), 1);
 	}
 
 	public function testDequeueItemWithUnorderedArg()

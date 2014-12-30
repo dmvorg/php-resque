@@ -1,6 +1,8 @@
 <?php
+use Resque\Redis;
+
 /**
- * Resque_Redis DSN tests.
+ * Resque\Redis DSN tests.
  *
  * @package		Resque/Tests
  * @author		Iskandar Najmuddin <github@iskandar.co.uk>
@@ -20,14 +22,14 @@ class Resque_Tests_DsnTest extends Resque_Tests_TestCase
 			// Input , Expected output
 			array('', array(
 				'localhost',
-				Resque_Redis::DEFAULT_PORT,
+				Redis::DEFAULT_PORT,
 				false,
 				false, false,
 				array(),
 			)),
 			array('localhost', array(
 				'localhost',
-				Resque_Redis::DEFAULT_PORT,
+				Redis::DEFAULT_PORT,
 				false,
 				false, false,
 				array(),
@@ -48,14 +50,14 @@ class Resque_Tests_DsnTest extends Resque_Tests_TestCase
 			)),
 			array('redis://foobar', array(
 				'foobar',
-				Resque_Redis::DEFAULT_PORT,
+				Redis::DEFAULT_PORT,
 				false,
 				false, false,
 				array(),
 			)),
 			array('redis://foobar/', array(
 				'foobar',
-				Resque_Redis::DEFAULT_PORT,
+				Redis::DEFAULT_PORT,
 				false,
 				false, false,
 				array(),
@@ -165,7 +167,7 @@ class Resque_Tests_DsnTest extends Resque_Tests_TestCase
 	 */
 	public function testParsingValidDsnString($dsn, $expected)
 	{
-		$result = Resque_Redis::parseDsn($dsn);
+		$result = Redis::parseDsn($dsn);
 		$this->assertEquals($expected, $result);
 	}
 
@@ -176,7 +178,7 @@ class Resque_Tests_DsnTest extends Resque_Tests_TestCase
 	public function testParsingBogusDsnStringThrowsException($dsn)
 	{
 		// The next line should throw an InvalidArgumentException
-		$result = Resque_Redis::parseDsn($dsn);
+		$result = Redis::parseDsn($dsn);
 	}
 
 }
