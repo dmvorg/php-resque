@@ -5,6 +5,9 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use Resque\Job\DirtyExitException;
 use Resque\Job\Status;
+use Resque\JobStrategy\StrategyInterface;
+use Resque\JobStrategy\InProcess;
+use Resque\JobStrategy\Fork;
 
 /**
  * Resque worker that handles checking queues for jobs, fetching them
@@ -52,9 +55,9 @@ class Worker
     private $currentJob = null;
 
     /**
-     * @var int Process ID of child worker processes.
+     * @var StrategyInterface
      */
-    private $child = null;
+    private $jobStrategy = null;
 
     /**
      * Instantiate a new worker, given a list of queues that it should be working
@@ -82,6 +85,23 @@ class Worker
         }
         $this->hostname = $hostname;
         $this->id       = $this->hostname . ':' . getmypid() . ':' . implode(',', $this->queues);
+
+        if (function_exists('pcntl_fork')) {
+            $this->setJobStrategy(new Fork);
+        } else {
+            $this->setJobStrategy(new InProcess);
+        }
+    }
+
+    /**
+     * Set the JobStrategy used to separate the job execution context from the worker
+     *
+     * @param StrategyInterface $jobStrategy
+     */
+    public function setJobStrategy(StrategyInterface $jobStrategy)
+    {
+        $this->jobStrategy = $jobStrategy;
+        $this->jobStrategy->setWorker($this);
     }
 
     /**
@@ -116,9 +136,8 @@ class Worker
 
     /**
      * Given a worker ID, find it and return an instantiated worker class for it.
-
      *
-*@param string $workerId The ID of the worker.
+     * @param string $workerId The ID of the worker.
      * @return Worker Instance of the worker. False if the worker does not exist.
      */
     public static function find($workerId)
@@ -200,36 +219,8 @@ class Worker
             Event::trigger('beforeFork', $job);
             $this->workingOn($job);
 
-            $this->child = Resque::fork();
+            $this->jobStrategy->perform($job);
 
-            // Forked and we're the child. Run the job.
-            if ($this->child === 0 || $this->child === false) {
-                $status = 'Processing ' . $job->queue . ' since ' . strftime('%F %T');
-                $this->updateProcLine($status);
-                $this->logger->log(LogLevel::INFO, $status);
-                $this->perform($job);
-                if ($this->child === 0) {
-                    exit(0);
-                }
-            }
-
-            if ($this->child > 0) {
-                // Parent process, sit and wait
-                $status = 'Forked ' . $this->child . ' at ' . strftime('%F %T');
-                $this->updateProcLine($status);
-                $this->logger->log(LogLevel::INFO, $status);
-
-                // Wait until the child process finishes before continuing
-                pcntl_wait($status);
-                $exitStatus = pcntl_wexitstatus($status);
-                if ($exitStatus !== 0) {
-                    $job->fail(new DirtyExitException(
-                        'Job exited with exit code ' . $exitStatus
-                    ));
-                }
-            }
-
-            $this->child = null;
             $this->doneWorking();
         }
 
@@ -246,7 +237,7 @@ class Worker
         try {
             Event::trigger('afterFork', $job);
             $job->perform();
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->log(LogLevel::CRITICAL, '{job} has failed {stack}', array('job' => $job, 'stack' => $e->getMessage()));
             $job->fail($e);
             return;
@@ -327,7 +318,7 @@ class Worker
      *
      * @param string $status The updated process title.
      */
-    private function updateProcLine($status)
+    public static function updateProcLine($status)
     {
         $processTitle = 'resque-' . Resque::VERSION . ': ' . $status;
         if (function_exists('cli_set_process_title')) {
@@ -405,20 +396,7 @@ class Worker
      */
     public function killChild()
     {
-        if (!$this->child) {
-            $this->logger->log(LogLevel::DEBUG, 'No child to kill.');
-            return;
-        }
-
-        $this->logger->log(LogLevel::INFO, 'Killing child at {child}', array('child' => $this->child));
-        if (exec('ps -o pid,state -p ' . $this->child, $output, $returnCode) && $returnCode != 1) {
-            $this->logger->log(LogLevel::DEBUG, 'Child {child} found, killing.', array('child' => $this->child));
-            posix_kill($this->child, SIGKILL);
-            $this->child = null;
-        } else {
-            $this->logger->log(LogLevel::INFO, 'Child {child} not found, restarting.', array('child' => $this->child));
-            $this->shutdown();
-        }
+        $this->jobStrategy->shutdown();
     }
 
     /**

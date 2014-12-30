@@ -2,6 +2,9 @@
 <?php
 
 // Find and initialize Composer
+use Resque\JobStrategy\Fastcgi;
+use Resque\JobStrategy\Fork;
+use Resque\JobStrategy\InProcess;
 use Resque\Redis;
 use Resque\Resque;
 use Resque\Log;
@@ -13,8 +16,6 @@ $files = array(
     __DIR__ . '/../../../../autoload.php',
     __DIR__ . '/../vendor/autoload.php',
 );
-
-$found = false;
 foreach ($files as $file) {
     if (file_exists($file)) {
         require_once $file;
@@ -31,7 +32,7 @@ if (!class_exists('Composer\Autoload\ClassLoader', false)) {
 }
 
 $QUEUE = getenv('QUEUE');
-if(empty($QUEUE)) {
+if (empty($QUEUE)) {
     die("Set QUEUE env var containing the list of queues to work.\n");
 }
 
@@ -45,7 +46,7 @@ $REDIS_BACKEND = getenv('REDIS_BACKEND');
 
 // A redis database number
 $REDIS_BACKEND_DB = getenv('REDIS_BACKEND_DB');
-if(!empty($REDIS_BACKEND)) {
+if (!empty($REDIS_BACKEND)) {
     if (empty($REDIS_BACKEND_DB))
         Resque::setBackend($REDIS_BACKEND);
     else
@@ -56,15 +57,14 @@ $logLevel = false;
 $LOGGING = getenv('LOGGING');
 $VERBOSE = getenv('VERBOSE');
 $VVERBOSE = getenv('VVERBOSE');
-if(!empty($LOGGING) || !empty($VERBOSE)) {
+if (!empty($LOGGING) || !empty($VERBOSE)) {
     $logLevel = true;
-}
-else if(!empty($VVERBOSE)) {
+} elseif (!empty($VVERBOSE)) {
     $logLevel = true;
 }
 
 $APP_INCLUDE = getenv('APP_INCLUDE');
-if($APP_INCLUDE) {
+if ($APP_INCLUDE) {
     if(!file_exists($APP_INCLUDE)) {
         die('APP_INCLUDE ('.$APP_INCLUDE.") does not exist.\n");
     }
@@ -82,34 +82,72 @@ $BLOCKING = getenv('BLOCKING') !== FALSE;
 
 $interval = 5;
 $INTERVAL = getenv('INTERVAL');
-if(!empty($INTERVAL)) {
+if (!empty($INTERVAL)) {
     $interval = $INTERVAL;
 }
 
 $count = 1;
 $COUNT = getenv('COUNT');
-if(!empty($COUNT) && $COUNT > 1) {
+if (!empty($COUNT) && $COUNT > 1) {
     $count = $COUNT;
 }
 
 $PREFIX = getenv('PREFIX');
-if(!empty($PREFIX)) {
+if (!empty($PREFIX)) {
     $logger->log(Psr\Log\LogLevel::INFO, 'Prefix set to {prefix}', array('prefix' => $PREFIX));
     Redis::prefix($PREFIX);
 }
 
-if($count > 1) {
-    for($i = 0; $i < $count; ++$i) {
+$jobStrategy = null;
+$JOB_STRATEGY = getenv('JOB_STRATEGY');
+switch ($JOB_STRATEGY) {
+    case 'inprocess':
+        $jobStrategy = new InProcess;
+        break;
+    case 'fork':
+        $jobStrategy = new Fork;
+        break;
+    case 'fastcgi':
+        $fastcgiLocation = '127.0.0.1:9000';
+        $FASTCGI_LOCATION = getenv('FASTCGI_LOCATION');
+        if (!empty($FASTCGI_LOCATION)) {
+            $fastcgiLocation = $FASTCGI_LOCATION;
+        }
+
+        $fastcgiScript = __DIR__.'/../extras/fastcgi_worker.php';
+        $FASTCGI_SCRIPT = getenv('FASTCGI_SCRIPT');
+        if (!empty($FASTCGI_SCRIPT)) {
+            $fastcgiScript = $FASTCGI_SCRIPT;
+        }
+
+        require_once __DIR__.'/../lib/JobStrategy/Fastcgi.php';
+        $jobStrategy = new Fastcgi(
+            $fastcgiLocation,
+            $fastcgiScript,
+            array(
+                'APP_INCLUDE'   => $APP_INCLUDE,
+                'REDIS_BACKEND' => $REDIS_BACKEND,
+            )
+        );
+        break;
+}
+
+
+if ($count > 1) {
+    for ($i = 0; $i < $count; ++$i) {
         $pid = Resque::fork();
-        if($pid == -1) {
+        if ($pid == -1) {
             $logger->log(Psr\Log\LogLevel::EMERGENCY, 'Could not fork worker {count}', array('count' => $i));
             die();
         }
         // Child, start the worker
-        else if(!$pid) {
+        elseif (!$pid) {
             $queues = explode(',', $QUEUE);
             $worker = new Worker($queues);
             $worker->setLogger($logger);
+            if ($jobStrategy) {
+                $worker->setJobStrategy($jobStrategy);
+            }
             $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
             $worker->work($interval, $BLOCKING);
             break;
@@ -121,6 +159,9 @@ else {
     $queues = explode(',', $QUEUE);
     $worker = new Worker($queues);
     $worker->setLogger($logger);
+    if ($jobStrategy) {
+        $worker->setJobStrategy($jobStrategy);
+    }
 
     $PIDFILE = getenv('PIDFILE');
     if ($PIDFILE) {
