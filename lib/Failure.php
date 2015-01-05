@@ -13,7 +13,7 @@ class Failure
     /**
      * @var string Class name representing the backend to pass failed jobs off to.
      */
-    private static $backend;
+    private static $backend = 'Resque\Failure\Redis';
 
     /**
      * Create a new failed job on the backend.
@@ -25,22 +25,10 @@ class Failure
      */
     public static function create($payload, \Exception $exception, Worker $worker, $queue)
     {
-        $backend = self::getBackend();
-        new $backend($payload, $exception, $worker, $queue);
-    }
-
-    /**
-     * Return an instance of the backend for saving job failures.
-     *
-     * @return object Instance of backend object.
-     */
-    public static function getBackend()
-    {
-        if (self::$backend === null) {
-            self::$backend = 'Resque\Failure\Redis';
+        $backend = self::$backend;
+        if ($backend) {
+            new $backend($payload, $exception, $worker, $queue);
         }
-
-        return self::$backend;
     }
 
     /**

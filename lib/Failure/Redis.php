@@ -3,7 +3,6 @@ namespace Resque\Failure;
 
 use Resque\Resque;
 use Resque\Failure_Interface;
-use stdClass;
 
 /**
  * Redis backend for storing failed Resque jobs.
