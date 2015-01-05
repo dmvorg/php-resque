@@ -3,6 +3,7 @@ namespace Resque\JobStrategy;
 
 use Psr\Log\LogLevel;
 use Resque\Job;
+use Resque\Resque;
 
 /**
  * Separates the job execution environment from the worker via pcntl_fork
@@ -26,7 +27,7 @@ class Fork extends InProcess
      */
     public function perform(Job $job)
     {
-        $this->child = $this->fork();
+        $this->child = Resque::fork();
 
         // Forked and we're the child. Run the job.
         if ($this->child === 0) {
@@ -73,23 +74,5 @@ class Fork extends InProcess
             $this->worker->logger->log(LogLevel::INFO, 'Child ' . $this->child . ' not found, restarting.');
             $this->worker->shutdown();
         }
-    }
-
-    /**
-     * Attempt to fork a child process from the parent to run a job in.
-     *
-     * Return values are those of pcntl_fork().
-     *
-     * @return int 0 for the forked child, or the PID of the child for the parent.
-     * @throws \RuntimeException When pcntl_fork returns -1
-     */
-    private function fork()
-    {
-        $pid = pcntl_fork();
-        if($pid === -1) {
-            throw new \RuntimeException('Unable to fork child worker.');
-        }
-
-        return $pid;
     }
 }
