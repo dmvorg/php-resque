@@ -12,10 +12,10 @@ use Resque\Resque;
  */
 class Status
 {
-    const STATUS_WAITING = 1;
-    const STATUS_RUNNING = 2;
-    const STATUS_FAILED = 3;
-    const STATUS_COMPLETE = 4;
+    const STATUS_WAITING = 'queued';
+    const STATUS_RUNNING = 'working';
+    const STATUS_FAILED = 'failed';
+    const STATUS_COMPLETE = 'completed';
 
     /**
      * @var string The ID of the job this status class refers back to.
@@ -87,8 +87,9 @@ class Status
      * Update the status indicator for the current job with a new status.
      *
      * @param int $status The status of the job (see constants in Resque\Job\Status)
+     * @param mixed $result The result of the job
      */
-    public function update($status)
+    public function update($status, $result = null)
     {
         if (!$this->isTracking()) {
             return;
@@ -97,6 +98,7 @@ class Status
         $statusPacket = array(
             'status'  => $status,
             'updated' => time(),
+            'result'  => $result,
         );
         Resque::redis()->set((string) $this, json_encode($statusPacket));
 
@@ -109,10 +111,9 @@ class Status
     /**
      * Fetch the status for the job being monitored.
      *
-     * @return mixed False if the status is not being monitored, otherwise the status as
-     *    as an integer, based on the Resque\Job\Status constants.
+     * @return false|array False if the status is not being monitored, otherwise the status array
      */
-    public function get()
+    public function getAll()
     {
         if (!$this->isTracking()) {
             return false;
@@ -123,7 +124,24 @@ class Status
             return false;
         }
 
-        return $statusPacket['status'];
+        return $statusPacket;
+    }
+
+    /**
+     * Fetch the status for the job being monitored.
+     *
+     * @return mixed False if the status is not being monitored, otherwise the status as
+     *    as an integer, based on the Resque\Job\Status constants.
+     */
+    public function get()
+    {
+        $statusPacket = $this->getAll();
+
+        if ($statusPacket) {
+            $statusPacket = $statusPacket['status'];
+        }
+
+        return $statusPacket;
     }
 
     /**

@@ -31,6 +31,11 @@ class Job
     private $instance;
 
     /**
+     * @var mixed The result of the job completion.
+     */
+    public $result;
+
+    /**
      * Instantiate a new instance of a job.
      *
      * @param string $queue   The queue that the job belongs to.
@@ -87,7 +92,7 @@ class Job
             return false;
         }
 
-        return new Job($queue, $payload);
+        return new self($queue, $payload);
     }
 
     /**
@@ -106,7 +111,7 @@ class Job
             return false;
         }
 
-        return new Job($item['queue'], $item['payload']);
+        return new self($item['queue'], $item['payload']);
     }
 
     /**
@@ -121,7 +126,7 @@ class Job
         }
 
         $statusInstance = new Job\Status($this->payload['id']);
-        $statusInstance->update($status);
+        $statusInstance->update($status, $this->result);
     }
 
     /**
@@ -131,8 +136,23 @@ class Job
      */
     public function getStatus()
     {
+        $statusArr = $this->getStatusArr();
+        return $statusArr ? $statusArr['status'] : $statusArr;
+    }
+
+    /**
+     * Return array of data about the status.
+     * Should contain keys:
+     *  - 'status'  => integer status
+     *  - 'updated' => last time the status was changed
+     *  - 'result'  => result of the job, null until job completion
+     *
+     * @return array
+     */
+    public function getStatusArr()
+    {
         $status = new Job\Status($this->payload['id']);
-        return $status->get();
+        return $status->getAll();
     }
 
     /**
@@ -157,7 +177,7 @@ class Job
      */
     public function getInstance()
     {
-        if (!is_null($this->instance)) {
+        if ($this->instance) {
             return $this->instance;
         }
 
@@ -197,7 +217,7 @@ class Job
                 $instance->setUp();
             }
 
-            $instance->perform();
+            $this->result = $instance->perform();
 
             if (method_exists($instance, 'tearDown')) {
                 $instance->tearDown();
