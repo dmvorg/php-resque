@@ -144,6 +144,9 @@ class Redis
     // mset
     // renamenx
 
+    /** @var Credis_Client */
+    private $driver;
+
     /**
      * Set Redis namespace (prefix) default: resque
      *
@@ -200,7 +203,7 @@ class Redis
      * Note: the 'user' part of the DSN is not used.
      *
      * @param string $dsn A DSN string
-     * @return array An array of DSN compotnents, with 'false' values for any unknown components. e.g.
+     * @return array An array of DSN components, with 'false' values for any unknown components. e.g.
      *                    [host, port, db, user, pass, options]
      */
     public static function parseDsn($dsn)
@@ -285,12 +288,11 @@ class Redis
         return self::$defaultNamespace;
     }
 
-    public static function removePrefix($string)
+    protected static function removePrefix($string)
     {
         $prefix = self::getPrefix();
-
-        if (substr($string, 0, strlen($prefix)) == $prefix) {
-            $string = substr($string, strlen($prefix), strlen($string));
+        if (strpos($string, $prefix) === 0) {
+            $string = substr($string, strlen($prefix));
         }
         return $string;
     }

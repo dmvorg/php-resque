@@ -11,7 +11,7 @@ namespace Resque;
 class Event
 {
     /**
-     * @var array Array containing all registered callbacks, indexked by event name.
+     * @var array Array containing all registered callbacks, indexed by event name.
      */
     private static $events = array();
 

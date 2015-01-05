@@ -167,7 +167,7 @@ class Resque
         }
 
         /**
-         * Normally the Resque\Resque\Redis class returns queue names without the prefix
+         * Normally the Resque\Redis class returns queue names without the prefix
          * But the blpop is a bit different. It returns the name as prefix:queue:name
          * So we need to strip off the prefix:queue: part
          */
