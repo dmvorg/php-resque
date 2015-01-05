@@ -339,4 +339,102 @@ class Resque
         $result  = self::redis()->del('queue:' . $queue);
         return ($result == 1) ? $counter : 0;
     }
+
+
+    /**
+     * Extends PHP-Resque adding pub/sub broadcast-style event dispatching, similar to RabbitMQ's Fanout.
+     *
+     * @package task
+     * @author Jesse Decker <jesse.decker@dmv.org>
+     * @date 2014-12-11
+     */
+
+    /**
+     * Register a queue as listening to an exchange.
+     * @param string $exchange
+     * @param string $queue
+     */
+    public static function subscribe($exchange, $queue)
+    {
+        if (!$queue) {
+            throw new \InvalidArgumentException("queue param must be supplied");
+        }
+
+        /** @var \Redis $redis */
+        $redis = self::redis();
+        $redis->sadd("exchanges:$exchange", $queue);
+        $redis->sadd('exchanges', $exchange);
+    }
+
+    /**
+     * Remove a queue from an exchange.
+     * @param string $exchange
+     * @param string $queue
+     */
+    public static function unsubscribe($exchange, $queue)
+    {
+        if (!$queue) {
+            throw new \InvalidArgumentException("queue param must be supplied");
+        }
+
+        /** @var \Redis $redis */
+        $redis = self::redis();
+        $redis->srem("exchanges:$exchange", $queue);
+        if ($redis->scard("exchanges:$exchange") == 0) {
+            $redis->srem('exchanges', $exchange);
+        }
+    }
+
+    /**
+     * Return list of registered queues for the provided exchange.
+     * @param string $exchange
+     * @return array List of queues in exchange
+     */
+    public static function queues_for($exchange)
+    {
+        /** @var \Redis $redis */
+        $redis = self::redis();
+        $queues = [];
+        if ($redis->sismember('exchanges', $exchange)) {
+            $queues = $redis->smembers("exchanges:$exchange");
+        }
+        return $queues;
+    }
+
+    /**
+     * Return list of all exchanges.
+     * @return array
+     */
+    public static function exchanges()
+    {
+        /** @var \Redis $redis */
+        $redis = self::redis();
+        $members = $redis->smembers('exchanges');
+        $exchanges = [];
+        foreach ($members as $exchange) {
+            $exchanges[] = [
+                'exchange' => $exchange,
+                'queues' => self::queues_for($exchange),
+            ];
+        }
+        return $exchanges;
+    }
+
+    /**
+     * Push an event onto all registered queues for an exchange.
+     * @param string $exchange
+     * @param string $class
+     * @param array $args
+     */
+    public static function publish($exchange, $class, array $args = null)
+    {
+        $queues = self::queues_for($exchange) ?: [];
+        foreach ($queues as $queue) {
+            self::push($queue, [
+                'class' => $class,
+                'args'  => array($args),
+                //'id'    => $id, Used in Resque_Job::create() but probably not needed here
+            ]);
+        }
+    }
 }
