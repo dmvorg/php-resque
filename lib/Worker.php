@@ -71,19 +71,14 @@ class Worker
      */
     public function __construct($queues)
     {
-        $this->logger = new Log();
+        $this->logger = new Log;
 
         if (!is_array($queues)) {
             $queues = array($queues);
         }
 
         $this->queues = $queues;
-        if (function_exists('gethostname')) {
-            $hostname = gethostname();
-        } else {
-            $hostname = php_uname('n');
-        }
-        $this->hostname = $hostname;
+        $this->hostname = gethostname();
         $this->id       = $this->hostname . ':' . getmypid() . ':' . implode(',', $this->queues);
 
         if (function_exists('pcntl_fork')) {
@@ -185,10 +180,10 @@ class Worker
             $job = false;
             if (!$this->paused) {
                 if ($blocking === true) {
-                    $this->logger->log(LogLevel::INFO, 'Starting blocking with timeout of {interval}', array('interval' => $interval));
-                    $this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with blocking timeout ' . $interval);
+                    $this->logger->log(LogLevel::INFO, "Starting blocking with timeout of {$interval}s");
+                    $this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with blocking timeout ' . $interval . 's');
                 } else {
-                    $this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with interval ' . $interval);
+                    $this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with interval ' . $interval . 's');
                 }
 
                 $job = $this->reserve($blocking, $interval);
@@ -202,14 +197,14 @@ class Worker
 
                 if ($blocking === false) {
                     // If no job was found, we sleep for $interval before continuing and checking again
-                    $this->logger->log(LogLevel::INFO, 'Sleeping for {interval}', array('interval' => $interval));
+                    $this->logger->log(LogLevel::INFO, "Sleeping for {$interval}s");
                     if ($this->paused) {
                         $this->updateProcLine('Paused');
                     } else {
                         $this->updateProcLine('Waiting for ' . implode(',', $this->queues));
                     }
 
-                    usleep($interval * 1000000);
+                    sleep($interval);
                 }
 
                 continue;
@@ -238,13 +233,13 @@ class Worker
             Event::trigger('afterFork', $job);
             $job->perform();
         } catch (\Exception $e) {
-            $this->logger->log(LogLevel::CRITICAL, '{job} has failed {stack}', array('job' => $job, 'stack' => $e->getMessage()));
+            $this->logger->log(LogLevel::CRITICAL, 'Job has failed, {job} : {stack}', array('job' => $job, 'stack' => $e->getMessage()));
             $job->fail($e);
             return;
         }
 
         $job->updateStatus(Status::STATUS_COMPLETE);
-        $this->logger->log(LogLevel::NOTICE, '{job} has finished', array('job' => $job));
+        $this->logger->log(LogLevel::NOTICE, 'Job has finished, {job}', array('job' => $job));
     }
 
     /**
@@ -262,15 +257,15 @@ class Worker
         if ($blocking === true) {
             $job = Job::reserveBlocking($queues, $timeout);
             if ($job) {
-                $this->logger->log(LogLevel::INFO, 'Found job on {queue}', array('queue' => $job->queue));
+                $this->logger->log(LogLevel::INFO, "Found job on queue {$job->queue}");
                 return $job;
             }
         } else {
             foreach ($queues as $queue) {
-                $this->logger->log(LogLevel::INFO, 'Checking {queue} for jobs', array('queue' => $queue));
+                $this->logger->log(LogLevel::INFO, "Checking queue for jobs: {$queue}");
                 $job = Job::reserve($queue);
                 if ($job) {
-                    $this->logger->log(LogLevel::INFO, 'Found job on {queue}', array('queue' => $job->queue));
+                    $this->logger->log(LogLevel::INFO, "Found job on queue {$job->queue}");
                     return $job;
                 }
             }
@@ -323,7 +318,7 @@ class Worker
         $processTitle = 'resque-' . Resque::VERSION . ': ' . $status;
         if (function_exists('cli_set_process_title')) {
             cli_set_process_title($processTitle);
-        } else if (function_exists('setproctitle')) {
+        } elseif (function_exists('setproctitle')) {
             setproctitle($processTitle);
         }
     }
@@ -416,7 +411,7 @@ class Worker
                 if ($host != $this->hostname || in_array($pid, $workerPids) || $pid == getmypid()) {
                     continue;
                 }
-                $this->logger->log(LogLevel::INFO, 'Pruning dead worker: {worker}', array('worker' => (string) $worker));
+                $this->logger->log(LogLevel::INFO, "Pruning dead worker: {$worker}");
                 $worker->unregisterWorker();
             }
         }
@@ -479,7 +474,7 @@ class Worker
             'run_at'  => strftime('%a %b %d %H:%M:%S %Z %Y'),
             'payload' => $job->payload
         ));
-        Resque::redis()->set('worker:' . $job->worker, $data);
+        Resque::redis()->set('worker:' . (string) $this, $data);
     }
 
     /**
@@ -505,18 +500,14 @@ class Worker
     }
 
     /**
-     * Return an object describing the job this worker is currently working on.
+     * Return an array describing the job this worker is currently working on.
      *
-     * @return object Object with details of current job.
+     * @return array Associated array with details of current job.
      */
     public function job()
     {
         $job = Resque::redis()->get('worker:' . $this);
-        if (!$job) {
-            return array();
-        } else {
-            return json_decode($job, true);
-        }
+        return $job ? json_decode($job, true) : array();
     }
 
     /**
