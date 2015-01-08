@@ -136,7 +136,7 @@ if ($count > 1) {
     for ($i = 0; $i < $count; ++$i) {
         $pid = Resque::fork();
         if ($pid == -1) {
-            $logger->log(Psr\Log\LogLevel::EMERGENCY, 'Could not fork worker {count}', array('count' => $i));
+            $logger->log(Psr\Log\LogLevel::EMERGENCY, "Could not fork worker count:$count, i:$i");
             die();
         }
         // Child, start the worker
@@ -147,7 +147,7 @@ if ($count > 1) {
             if ($jobStrategy) {
                 $worker->setJobStrategy($jobStrategy);
             }
-            $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
+            $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker '.$worker);
             $worker->work($interval, $BLOCKING);
             break;
         }
@@ -168,6 +168,6 @@ else {
             die('Could not write PID information to ' . $PIDFILE);
     }
 
-    $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
+    $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker '.$worker);
     $worker->work($interval, $BLOCKING);
 }
