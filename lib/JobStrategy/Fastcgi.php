@@ -15,23 +15,30 @@ use EBernhardson\FastCGI\CommunicationException;
 class Fastcgi implements StrategyInterface
 {
     /**
-     * @var bool True when waiting for a response from FastCGI server
+     * @var array Default environment for all FastCGI requests
      */
-    private $waiting = false;
-
-    /**
-     * @var array Default environment for FastCGI requests
-     */
-    protected $requestData = array(
+    public static $defaultRequestData = array(
         'GATEWAY_INTERFACE' => 'FastCGI/1.0',
-        'REQUEST_METHOD' => 'GET',
         'SERVER_SOFTWARE' => 'php-resque-fastcgi/1.3-dev',
         'REMOTE_ADDR' => '127.0.0.1',
         'REMOTE_PORT' => 8888,
         'SERVER_ADDR' => '127.0.0.1',
         'SERVER_PORT' => 8888,
-        'SERVER_PROTOCOL' => 'HTTP/1.1'
+        'SERVER_PROTOCOL' => 'HTTP/1.1',
+        // Send data as post (don't change this)
+        'REQUEST_METHOD' => 'POST',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
     );
+
+    /**
+     * @var bool True when waiting for a response from FastCGI server
+     */
+    private $waiting = false;
+
+    /**
+     * @var array Environment for FastCGI requests, created upon __construct()
+     */
+    protected $requestData;
 
     /** @var string */
     private $location;
@@ -58,11 +65,11 @@ class Fastcgi implements StrategyInterface
         $this->fcgi = new Client($location, $port);
         $this->fcgi->setKeepAlive(true);
 
-        $this->requestData = $environment + $this->requestData + array(
-                'SCRIPT_FILENAME' => $script,
-                'SERVER_NAME' => php_uname('n'),
-                'RESQUE_DIR' => __DIR__.'/../../../',
-            );
+        // Don't allow empty headers
+        $this->requestData = array_filter(array_merge(array(
+            'SCRIPT_FILENAME' => $script,
+            'SERVER_NAME'     => php_uname('n'),
+        ), self::$defaultRequestData, $environment));
     }
 
     /**
@@ -87,10 +94,13 @@ class Fastcgi implements StrategyInterface
         $this->waiting = true;
 
         try {
-            $this->fcgi->request(array(
-                    'RESQUE_JOB' => urlencode(serialize($job)),
-                ) + $this->requestData, '');
+            // Send job data as POST content
+            $content = 'RESQUE_JOB=' . urlencode(serialize($job));
+            $headers = $this->requestData;
+            $headers['CONTENT_LENGTH'] = strlen($content);
+            $this->fcgi->request($headers, $content);
 
+            // Will block until response
             $response = $this->fcgi->response();
             $this->waiting = false;
         } catch (CommunicationException $e) {

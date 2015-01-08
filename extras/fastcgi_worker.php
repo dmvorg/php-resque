@@ -2,10 +2,12 @@
 
 use Resque\Resque;
 
-if (!isset($_SERVER['RESQUE_JOB'])) {
+if (empty($_POST['RESQUE_JOB'])) {
     header('Status: 500 No Job');
     return;
 }
+// If reverted to a $_SERVER var, must use urldecode()
+$job = $_POST['RESQUE_JOB'];
 
 // Look for parent project's Composer autoloader
 $path = __DIR__.'/../../../vendor/autoload.php';
@@ -25,7 +27,7 @@ try {
         require_once $_SERVER['APP_INCLUDE'];
     }
 
-    $job = unserialize(urldecode($_SERVER['RESQUE_JOB']));
+    $job = unserialize($job);
     $job->worker->perform($job);
 } catch (\Exception $e) {
     if (isset($job)) {
