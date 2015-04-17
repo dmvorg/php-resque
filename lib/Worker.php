@@ -210,7 +210,7 @@ class Worker
                 continue;
             }
 
-            $this->logger->log(LogLevel::NOTICE, 'Starting work on {job}', array('job' => $job));
+            $this->logger->log(LogLevel::INFO, 'Starting work on {job}', array('job' => $job));
             Event::trigger('beforeFork', $job);
             $this->workingOn($job);
 
@@ -239,7 +239,7 @@ class Worker
         }
 
         $job->updateStatus(Status::STATUS_COMPLETE);
-        $this->logger->log(LogLevel::NOTICE, 'Job has finished, {job}', array('job' => $job));
+        $this->logger->log(LogLevel::INFO, 'Job has finished, {job}', array('job' => $job));
     }
 
     /**
