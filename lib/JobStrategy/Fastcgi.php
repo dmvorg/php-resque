@@ -27,6 +27,7 @@ class Fastcgi implements StrategyInterface
         'SERVER_PROTOCOL' => 'HTTP/1.1',
         // Send data as post (don't change this)
         'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/',
         'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
     );
 
@@ -98,6 +99,9 @@ class Fastcgi implements StrategyInterface
             $content = 'RESQUE_JOB=' . urlencode(serialize($job));
             $headers = $this->requestData;
             $headers['CONTENT_LENGTH'] = strlen($content);
+            $payload = $job->payload;
+            unset($payload['args']); // remove arguments, which might be quite large
+            $headers['REQUEST_URI'] .= '?' . http_build_query($payload, null, '&');
             $this->fcgi->request($headers, $content);
 
             // Will block until response
