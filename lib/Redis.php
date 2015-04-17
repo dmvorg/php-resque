@@ -169,7 +169,7 @@ class Redis
     {
         if (is_array($server)) {
             $this->driver = new Credis_Cluster($server);
-        } else {
+        } elseif (is_string($server)) {
 
             list($host, $port, $dsnDatabase, $user, $password, $options) = self::parseDsn($server);
             // $user is not used, only $password
@@ -188,6 +188,8 @@ class Redis
             if ($dsnDatabase !== false) {
                 $database = $dsnDatabase;
             }
+        } else {
+            $this->driver = $server;
         }
 
         if ($database !== null) {
@@ -277,8 +279,11 @@ class Redis
             }
         }
         try {
-            return $this->driver->__call($name, $args);
+            // This is slow, but necessary to allow custom Redis wrappers
+            return call_user_func_array([$this->driver, $name], $args);
         } catch (CredisException $e) {
+            return false;
+        } catch (\RedisException $e) {
             return false;
         }
     }
