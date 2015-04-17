@@ -286,12 +286,41 @@ class Worker
      */
     public function queues($fetch = true)
     {
-        if (!in_array('*', $this->queues) || $fetch == false) {
+        if (!$fetch) {
+            // Use raw data only
             return $this->queues;
         }
 
-        $queues = Resque::queues();
-        sort($queues);
+        if ($this->queues[0] === '*') {
+            $allQueues = Resque::queues();
+            sort($allQueues);
+            return $allQueues;
+        }
+
+        $queues = [];
+        $regex = null;
+        foreach ($this->queues as $queue) {
+            if (false !== strpos($queue, '*')) {
+                $regex .= str_replace('*', '.*', $queue) . '|';
+            } else {
+                $queues[] = $queue;
+            }
+        }
+
+        if ($regex) {
+            // Turn into valid regex
+            $regex = '&^(' . substr($regex, 0, -1) . ')$&';
+            $allQueues = Resque::queues();
+            // Loop alphabetically
+            sort($allQueues);
+            foreach ($allQueues as $queue) {
+                // Only add once
+                if (preg_match($regex, $queue) && !in_array($queue, $queues)) {
+                    $queues[] = $queue;
+                }
+            }
+        }
+
         return $queues;
     }
 
