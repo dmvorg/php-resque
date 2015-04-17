@@ -57,7 +57,7 @@ class Fastcgi implements StrategyInterface
     {
         $this->location = $location;
 
-        $port = false;
+        $port = null; // must be === null
         if (false !== strpos($location, ':')) {
             list($location, $port) = explode(':', $location, 2);
         }
