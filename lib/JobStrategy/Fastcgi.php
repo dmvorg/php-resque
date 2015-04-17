@@ -100,6 +100,7 @@ class Fastcgi implements StrategyInterface
             $headers = $this->requestData;
             $headers['CONTENT_LENGTH'] = strlen($content);
             $payload = $job->payload;
+            $payload['queue'] = $job->queue; // add the queue-name
             unset($payload['args']); // remove arguments, which might be quite large
             $headers['REQUEST_URI'] .= '?' . http_build_query($payload, null, '&');
             $this->fcgi->request($headers, $content);
