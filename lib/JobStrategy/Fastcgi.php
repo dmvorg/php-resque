@@ -43,6 +43,8 @@ class Fastcgi implements StrategyInterface
 
     /** @var string */
     private $location;
+    /** @var int */
+    private $port;
     /** @var Client */
     private $fcgi;
     /** @var Worker */
@@ -56,12 +58,12 @@ class Fastcgi implements StrategyInterface
      */
     public function __construct($location, $script, $environment = array())
     {
-        $this->location = $location;
-
         $port = null; // must be === null
         if (false !== strpos($location, ':')) {
             list($location, $port) = explode(':', $location, 2);
         }
+        $this->location = $location;
+        $this->port = $port;
 
         $this->fcgi = new Client($location, $port);
         $this->fcgi->setKeepAlive(true);
@@ -88,31 +90,50 @@ class Fastcgi implements StrategyInterface
      */
     public function perform(Job $job)
     {
-        $status = 'Requested fcgi job execution from ' . $this->location . ' at ' . strftime('%F %T');
+        // Update status
+        $status = 'Requested fcgi job execution from ' . $this->location . ($this->port ? ':' . $this->port : '') . ' at ' . strftime('%F %T');
         $this->worker->updateProcLine($status);
-        $this->worker->logger->log(LogLevel::INFO, $status);
+        $this->worker->logger->log(LogLevel::DEBUG, $status);
+
+        // Prepare request params
+        $content = 'RESQUE_JOB=' . urlencode(serialize($job));
+        $payload = $job->payload; // implicit copy
+        $payload['queue'] = $job->queue; // add the queue-name
+        unset($payload['args']); // remove arguments, which might be large
+        $headers = $this->requestData; // implicit copy
+        $headers['CONTENT_LENGTH'] = strlen($content);
+        $headers['REQUEST_URI'] .= '?' . http_build_query($payload, null, '&');
 
         $this->waiting = true;
 
-        try {
-            // Send job data as POST content
-            $content = 'RESQUE_JOB=' . urlencode(serialize($job));
-            $headers = $this->requestData;
-            $headers['CONTENT_LENGTH'] = strlen($content);
-            $payload = $job->payload;
-            $payload['queue'] = $job->queue; // add the queue-name
-            unset($payload['args']); // remove arguments, which might be quite large
-            $headers['REQUEST_URI'] .= '?' . http_build_query($payload, null, '&');
-            $this->fcgi->request($headers, $content);
+        $response = null;
+        for ($retries = 2; $retries; $retries--) {
+            try {
+                if (!$this->fcgi) {
+                    $this->fcgi = new Client($this->location, $this->port);
+                    $this->fcgi->setKeepAlive(true);
+                }
 
-            // Will block until response
-            $response = $this->fcgi->response();
-            $this->waiting = false;
-        } catch (CommunicationException $e) {
-            $this->waiting = false;
-            $job->fail($e);
-            return;
+                // Send job data as POST content
+                $this->fcgi->request($headers, $content);
+                // Will block until response
+                $response = $this->fcgi->response();
+                break;
+
+            } catch (CommunicationException $e) {
+                if ($retries) {
+                    // Maybe the connection got stale; try to re-open
+                    $this->fcgi->close();
+                    $this->fcgi = null;
+                } else {
+                    $this->waiting = false;
+                    $job->fail($e);
+                    return;
+                }
+            }
         }
+
+        $this->waiting = false;
 
         if ($response['statusCode'] !== 200) {
             $job->fail(new \Exception(sprintf(
