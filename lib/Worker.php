@@ -180,7 +180,7 @@ class Worker
             $job = false;
             if (!$this->paused) {
                 if ($blocking === true) {
-                    $this->logger->log(LogLevel::INFO, "Starting blocking with timeout of {$interval}s");
+                    $this->logger->log(LogLevel::DEBUG, "Starting blocking with timeout of {$interval}s");
                     $this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with blocking timeout ' . $interval . 's');
                 } else {
                     $this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with interval ' . $interval . 's');
@@ -197,7 +197,7 @@ class Worker
 
                 if ($blocking === false) {
                     // If no job was found, we sleep for $interval before continuing and checking again
-                    $this->logger->log(LogLevel::INFO, "Sleeping for {$interval}s");
+                    $this->logger->log(LogLevel::DEBUG, "Sleeping for {$interval}s");
                     if ($this->paused) {
                         $this->updateProcLine('Paused');
                     } else {
@@ -210,7 +210,7 @@ class Worker
                 continue;
             }
 
-            $this->logger->log(LogLevel::INFO, 'Starting work on {job}', array('job' => $job));
+            $this->logger->log(LogLevel::DEBUG, 'Starting work on {job}', array('job' => $job));
             Event::trigger('beforeFork', $job);
             $this->workingOn($job);
 
