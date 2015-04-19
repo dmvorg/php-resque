@@ -226,6 +226,7 @@ class Worker
      * Process a single job.
      *
      * @param Job $job The job to be processed.
+     * @return bool Whether job was successful
      */
     public function perform(Job $job)
     {
@@ -235,11 +236,12 @@ class Worker
         } catch (\Exception $e) {
             $this->logger->log(LogLevel::CRITICAL, 'Job has failed, {job} : {stack}', array('job' => $job, 'stack' => $e->getMessage()));
             $job->fail($e);
-            return;
+            return false;
         }
 
         $job->updateStatus(Status::STATUS_COMPLETE);
         $this->logger->log(LogLevel::INFO, 'Job has finished, {job}', array('job' => $job));
+        return true;
     }
 
     /**
