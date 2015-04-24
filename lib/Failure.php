@@ -25,9 +25,11 @@ class Failure
      */
     public static function create($payload, \Exception $exception, Worker $worker, $queue)
     {
-        $backend = self::$backend;
-        if ($backend) {
-            new $backend($payload, $exception, $worker, $queue);
+        if (self::$backend) {
+            $backend = (array) self::$backend;
+            foreach ($backend as $b) {
+                new $b($payload, $exception, $worker, $queue);
+            }
         }
     }
 
