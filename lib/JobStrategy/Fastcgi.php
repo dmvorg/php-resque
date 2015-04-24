@@ -123,6 +123,7 @@ class Fastcgi implements StrategyInterface
             } catch (CommunicationException $e) {
                 if ($retries) {
                     // Maybe the connection got stale; try to re-open
+                    $this->worker->logger->log(LogLevel::NOTICE, 'Error talking to FPM, restarting: ' . $e->getMessage(), [ 'e' => $e ]);
                     $this->fcgi->close();
                     $this->fcgi = null;
                 } else {
