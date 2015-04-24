@@ -312,7 +312,7 @@ class Resque
             } elseif (is_array($val)) {
                 $decodedArgs = (array) $decoded['args'][0];
                 if ($decoded['class'] == $key &&
-                    count($decodedArgs) > 0 && count(array_diff($decodedArgs, $val)) == 0
+                    count($decodedArgs) > 0 && count(array_diff($val, $decodedArgs)) == 0
                 ) {
                     return true;
                 }
