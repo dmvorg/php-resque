@@ -149,6 +149,7 @@ class Status
      */
     public function stop()
     {
+        $this->isTracking = null;
         Resque::redis()->del((string) $this);
     }
 
