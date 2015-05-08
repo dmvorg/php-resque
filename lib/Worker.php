@@ -20,6 +20,11 @@ use Resque\JobStrategy\Fork;
 class Worker
 {
     /**
+     * @var callable If set, will call this to retrieve other PIDs on the system
+     */
+    public static $getPids;
+
+    /**
      * @var LoggerInterface Logging object that implements the PSR-3 LoggerInterface
      */
     public $logger;
@@ -454,8 +459,12 @@ class Worker
      *
      * @return array Array of Resque worker process IDs.
      */
-    public function workerPids()
+    public static function workerPids()
     {
+        if (self::$getPids && is_callable(self::$getPids)) {
+            $func = self::$getPids;
+            return $func();
+        }
         $pids = array();
         exec('ps -A -o pid,command | grep [r]esque', $cmdOutput);
         foreach ($cmdOutput as $line) {
