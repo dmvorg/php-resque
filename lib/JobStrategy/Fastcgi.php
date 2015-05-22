@@ -136,7 +136,7 @@ class Fastcgi implements StrategyInterface
 
         $this->waiting = false;
 
-        if ($response['statusCode'] !== 200) {
+        if (!$response['statusCode'] || $response['statusCode'] > 299) { // Allow the script to return any 200-ish status for logging purposes
             $job->fail(new \Exception(sprintf(
                 'FastCGI job returned non-200 status code: %s Stdout: %s Stderr: %s',
                 $response['headers']['status'],
