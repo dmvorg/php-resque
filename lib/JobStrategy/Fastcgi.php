@@ -165,6 +165,8 @@ class Fastcgi implements StrategyInterface
         } else {
             $this->worker->logger->log(LogLevel::INFO, 'Closing fcgi connection with job in progress.');
         }
-        $this->fcgi->close();
+        if ($this->fcgi) {
+            $this->fcgi->close();
+        }
     }
 }
