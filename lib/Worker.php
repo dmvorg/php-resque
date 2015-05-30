@@ -94,6 +94,25 @@ class Worker
     }
 
     /**
+     * Generate a string representation of this worker.
+     *
+     * @return string String identifier for this worker instance.
+     */
+    public function __toString()
+    {
+        return $this->id;
+    }
+
+    /**
+     * @return array
+     */
+    public function __sleep()
+    {
+        // don't save "currentJob" because we know what job we're working on!
+        return array('queues', 'hostname', 'id', 'jobStrategy', 'logger');
+    }
+
+    /**
      * Set the JobStrategy used to separate the job execution context from the worker
      *
      * @param StrategyInterface $jobStrategy
@@ -527,16 +546,6 @@ class Worker
         Stat::incr('processed');
         Stat::incr('processed:' . (string) $this);
         Resque::redis()->del('worker:' . (string) $this);
-    }
-
-    /**
-     * Generate a string representation of this worker.
-     *
-     * @return string String identifier for this worker instance.
-     */
-    public function __toString()
-    {
-        return $this->id;
     }
 
     /**

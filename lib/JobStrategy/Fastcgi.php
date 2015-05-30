@@ -76,6 +76,15 @@ class Fastcgi implements StrategyInterface
     }
 
     /**
+     * Clear open connections when serializing.
+     * @return array
+     */
+    public function __sleep()
+    {
+        return [ 'location', 'port' ];
+    }
+
+    /**
      * @param Worker $worker
      */
     public function setWorker(Worker $worker)
