@@ -123,10 +123,8 @@ class Fastcgi implements StrategyInterface
                     $this->fcgi->setKeepAlive(true);
                 }
 
-                // Send job data as POST content
-                $this->fcgi->request($headers, $content);
-                // Will block until response
-                $response = $this->fcgi->response();
+                // Send job data as POST content, will block until response
+                $response = $this->fcgi->request($headers, $content);
                 break;
 
             } catch (CommunicationException $e) {
