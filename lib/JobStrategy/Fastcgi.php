@@ -105,7 +105,7 @@ class Fastcgi implements StrategyInterface
         $this->worker->logger->log(LogLevel::DEBUG, $status);
 
         // Prepare request params
-        $content = json_encode(serialize($job)); // JSON is a better encapsulation then urlencode()
+        $content = 'RESQUE_JOB=' . urlencode(serialize($job));
         $payload = $job->payload; // implicit copy
         $payload['queue'] = $job->queue; // add the queue-name
         unset($payload['args']); // remove arguments, which might be large

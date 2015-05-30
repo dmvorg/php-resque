@@ -11,8 +11,8 @@ if (!file_exists($path)) {
 // Die if Composer hasn't been run yet
 require_once $path;
 
-if (!isset($_SERVER['REQUEST_METHOD']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Status: 400 Bad Request Type', true, 400);
+if (empty($_POST['RESQUE_JOB'])) {
+    header('Status: 400 Missing Job', true, 400);
     return;
 }
 
@@ -25,9 +25,7 @@ try {
         require_once $_SERVER['APP_INCLUDE'];
     }
 
-    // Use raw POST data to skip PHP's variable parsing
-    // JSON encapsulation saves us from UTF8 character hell
-    $job = unserialize(json_decode(file_get_contents('php://input')));
+    $job = unserialize($_POST['RESQUE_JOB']);
 
     if (!($job instanceof Job)) {
         // Allow job to be marked as failed in listener
