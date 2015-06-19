@@ -1,11 +1,12 @@
 <?php
 namespace Resque\JobStrategy;
 
+use EBernhardson\FastCGI\Client;
+use EBernhardson\FastCGI\CommunicationException;
+use EBernhardson\FastCGI\TimedOutException;
 use Psr\Log\LogLevel;
 use Resque\Worker;
 use Resque\Job;
-use EBernhardson\FastCGI\Client;
-use EBernhardson\FastCGI\CommunicationException;
 
 /**
  * @package Resque/JobStrategy
@@ -125,25 +126,24 @@ class Fastcgi implements StrategyInterface
 
                 // Wait for response body
                 $response = $responseObj->get();
+                // No need for any retries
                 break;
 
             } catch (CommunicationException $e) {
                 if ($retries) {
-                    if ($responseObj) {
-                        // The read operation probably timeed out, try again
-                        $msg = 'Error reading from FPM';
-                    } else {
-                        // Maybe the connection got stale; try to re-open
-                        $msg = 'Error talking to FPM, restarting';
-                        $this->fcgi->close(); // kill socket just in case
-                        $responseObj = null;
-                    }
-                    $this->worker->logger->log(LogLevel::NOTICE, "$msg: " . $e->getMessage(), [ 'e' => $e ]);
+                    // Connection got stale; try to re-open
+                    $this->fcgi->close(); // kill socket just in case
+                    $responseObj = null;
+                    $this->worker->logger->log(LogLevel::NOTICE, 'Error talking to FPM, restarting (' . $e->getMessage() . ')', [ 'e' => $e ]);
                 } else {
                     $this->waiting = false;
                     $job->fail($e);
                     return;
                 }
+
+            } catch (TimedOutException $e) {
+                // Just try again...
+                $this->worker->logger->log(LogLevel::INFO, 'FPM timeout (' . $e->getMessage() . ')', [ 'e' => $e ]);
             }
         }
 
