@@ -115,24 +115,30 @@ class Fastcgi implements StrategyInterface
 
         $this->waiting = true;
 
-        $response = null;
+        $response = $responseObj = null;
         for ($retries = 2; $retries; $retries--) {
             try {
-                if (!$this->fcgi) {
-                    $this->fcgi = new Client($this->location, $this->port);
-                    $this->fcgi->setKeepAlive(true);
+                if (!$responseObj) {
+                    // Send job data as POST content
+                    $responseObj = $this->fcgi->asyncRequest($headers, $content);
                 }
 
-                // Send job data as POST content, will block until response
-                $response = $this->fcgi->request($headers, $content);
+                // Wait for response body
+                $response = $responseObj->get();
                 break;
 
             } catch (CommunicationException $e) {
                 if ($retries) {
-                    // Maybe the connection got stale; try to re-open
-                    $this->worker->logger->log(LogLevel::NOTICE, 'Error talking to FPM, restarting: ' . $e->getMessage(), [ 'e' => $e ]);
-                    $this->fcgi->close();
-                    $this->fcgi = null;
+                    if ($responseObj) {
+                        // The read operation probably timeed out, try again
+                        $msg = 'Error reading from FPM';
+                    } else {
+                        // Maybe the connection got stale; try to re-open
+                        $msg = 'Error talking to FPM, restarting';
+                        $this->fcgi->close(); // kill socket just in case
+                        $responseObj = null;
+                    }
+                    $this->worker->logger->log(LogLevel::NOTICE, "$msg: " . $e->getMessage(), [ 'e' => $e ]);
                 } else {
                     $this->waiting = false;
                     $job->fail($e);
@@ -143,7 +149,11 @@ class Fastcgi implements StrategyInterface
 
         $this->waiting = false;
 
-        if (!$response['statusCode'] || $response['statusCode'] > 299) { // Allow the script to return any 200-ish status for logging purposes
+        if (
+               !$response['statusCode'] // this would be odd, but it could happen
+            || $response['statusCode'] > 299 // Allow the script to return any 200-ish status for logging purposes
+            || strpos($response['body'], "\nFatal error: ") // Fatal Errors still return 200!!
+        ) {
             $job->fail(new \Exception(sprintf(
                 'FastCGI job returned non-200 status code: %s Stdout: %s Stderr: %s',
                 $response['headers']['status'],
