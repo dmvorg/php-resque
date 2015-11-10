@@ -8,38 +8,38 @@ use CredisException;
 /**
  * Wrap Credis to add namespace support and various helper methods.
  * @method exists
- * @method del
+ * @method int del(string $key)
  * @method type
  * @method keys
  * @method expire
  * @method ttl
  * @method move
- * @method set
- * @method setex
- * @method get
- * @method getset
- * @method setnx
+ * @method int set(string $key, string $val, int $optOrTimeout)
+ * @method int setex(string $key, string $val, int $timeout)
+ * @method string get(string $key) Return value at key
+ * @method string getset(string $key, string $val) Set value and return previous value
+ * @method int setnx(string $key, string $val) Set if not exists
  * @method incr
  * @method incrby
  * @method decr
  * @method decrby
  * @method rpush
  * @method lpush
- * @method llen
- * @method lrange
+ * @method int llen(string $key) Length of list
+ * @method array lrange(string $key, int $start, int $end)
  * @method ltrim
  * @method lindex
  * @method lset
- * @method lrem
- * @method lpop
+ * @method int lrem(string $key, string $val) Remove value from list
+ * @method string lpop(string $key) Remove and return the first element from list
  * @method blpop
  * @method rpop
  * @method sadd
  * @method srem
  * @method spop
- * @method scard
+ * @method int scard(string $key) Number of elements in a set
  * @method sismember
- * @method smembers
+ * @method array smembers(string $key) Returns all members for set at $key
  * @method srandmember
  * @method zadd
  * @method zrem
