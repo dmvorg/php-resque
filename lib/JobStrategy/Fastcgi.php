@@ -117,33 +117,42 @@ class Fastcgi implements StrategyInterface
         $this->waiting = true;
 
         $response = $responseObj = null;
-        for ($retries = 2; $retries; $retries--) {
+        for ($tries = 2; $tries; $tries--) {
             try {
                 if (!$responseObj) {
                     // Send job data as POST content
                     $responseObj = $this->fcgi->asyncRequest($headers, $content);
                 }
-
-                // Wait for response body
-                $response = $responseObj->get();
-                // No need for any retries
-                break;
+                break; // No need for retries
 
             } catch (CommunicationException $e) {
-                if ($retries) {
+                if ($tries) {
                     // Connection got stale; try to re-open
                     $this->fcgi->close(); // kill socket just in case
                     $responseObj = null;
-                    $this->worker->logger->log(LogLevel::NOTICE, 'Error talking to FPM, restarting (' . $e->getMessage() . ')', [ 'e' => $e ]);
+                    $this->worker->logger->log(LogLevel::NOTICE, 'Error sending job to FPM, restarting (' . $e->getMessage() . ')', [ 'e' => $e ]);
                 } else {
                     $this->waiting = false;
                     $job->fail($e);
                     return;
                 }
+            }
+        }
+
+        for ($tries = 2; $tries; $tries--) {
+            try {
+                // Wait for response body
+                $response = $responseObj->get();
 
             } catch (TimedOutException $e) {
-                // Just try again...
+                // Can try again...
                 $this->worker->logger->log(LogLevel::INFO, 'FPM timeout (' . $e->getMessage() . ')', [ 'e' => $e ]);
+
+            } catch (CommunicationException $e) {
+                // If retry at this point, we may run the job twice, so we must give up
+                $this->waiting = false;
+                $job->fail($e);
+                return;
             }
         }
 
