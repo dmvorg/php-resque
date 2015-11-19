@@ -67,7 +67,7 @@ class Fastcgi implements StrategyInterface
         $this->port = $port;
 
         $this->fcgi = new Client($location, $port);
-        $this->fcgi->setKeepAlive(true);
+        //$this->fcgi->setKeepAlive(true); << This can do bad things with dynamic FPM pools
 
         // Don't allow empty headers
         $this->requestData = array_filter(array_merge(array(
@@ -116,10 +116,11 @@ class Fastcgi implements StrategyInterface
 
         $this->waiting = true;
 
-        $response = $responseObj = null;
+        $response = $responseObj = $startTime = null;
         for ($tries = 2; $tries; $tries--) {
             try {
                 if (!$responseObj) {
+                    $startTime = microtime(true);
                     // Send job data as POST content
                     $responseObj = $this->fcgi->asyncRequest($headers, $content);
                 }
@@ -146,17 +147,22 @@ class Fastcgi implements StrategyInterface
 
             } catch (TimedOutException $e) {
                 // Can try again...
-                $this->worker->logger->log(LogLevel::INFO, 'FPM timeout (' . $e->getMessage() . ')', [ 'e' => $e ]);
+                $this->worker->logger->log(LogLevel::INFO, 'FPM timeout after ' . round(microtime(true)-$startTime,4) . ' seconds (' . $e->getMessage() . ')', [ 'e' => $e ]);
 
             } catch (CommunicationException $e) {
                 // If retry at this point, we may run the job twice, so we must give up
                 $this->waiting = false;
+                $this->worker->logger->log(LogLevel::ERROR, "Job Failed after " . round(microtime(true)-$startTime,4) . " seconds");
                 $job->fail($e);
                 return;
             }
         }
 
         $this->waiting = false;
+
+        // FPM tears down and re-builds children processes, so we can't keep the connection around
+        // @see http://serverfault.com/questions/349947/php-fpm-timeout-issue-everyday
+        $this->fcgi->close();
 
         if (
                !$response['statusCode'] // this would be odd, but it could happen
