@@ -152,6 +152,7 @@ class Resque
      * @param array $queues
      * @param int   $timeout
      * @return null|array   Decoded item from the queue.
+     * @throws \RedisException
      */
     public static function blpop(array $queues, $timeout)
     {
@@ -160,9 +161,17 @@ class Resque
             $list[] = 'queue:' . $queue;
         }
 
-        $item = self::redis()->blpop($list, (int) $timeout);
+        $timeout = (int) $timeout;
+        $startTime = microtime(true);
+        $item = self::redis()->blpop($list, $timeout);
 
         if (!$item) {
+            // if block takes <10% of expected time and returned nothing
+            if ($timeout > 1 && $diff = (microtime(true) - $startTime) < $timeout*.10) {
+                // might try self::redis()->info() first too
+                $diff = number_format($diff, 2);
+                throw new \RedisException("blpop expected {$timeout}s, failed in {$diff}s");
+            }
             return null;
         }
 
