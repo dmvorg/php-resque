@@ -147,12 +147,12 @@ class Fastcgi implements StrategyInterface
 
             } catch (TimedOutException $e) {
                 // Can try again...
-                $this->worker->logger->log(LogLevel::INFO, 'FPM timeout after ' . round(microtime(true)-$startTime,4) . ' seconds (' . $e->getMessage() . ')', [ 'e' => $e ]);
+                $this->worker->logger->log(LogLevel::INFO, 'FPM timeout after ' . round(microtime(true)-$startTime,4) . ' seconds (' . $e->getMessage() . ')', [ 'job' => (string) $job, 'e' => $e ]);
 
             } catch (CommunicationException $e) {
                 // If retry at this point, we may run the job twice, so we must give up
                 $this->waiting = false;
-                $this->worker->logger->log(LogLevel::ERROR, "Job Failed after " . round(microtime(true)-$startTime,4) . " seconds");
+                $this->worker->logger->log(LogLevel::ERROR, "Job Failed after " . round(microtime(true)-$startTime,4) . " seconds", ['job' => (string) $job]);
                 $job->fail($e);
                 return;
             }
